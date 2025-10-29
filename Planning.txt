@@ -1,0 +1,41 @@
+1. Create Rooms
+start with cubes making up four walls & floor
+make sure there are doors on every wall (in the middle)
+after generating, any door that isn't connected to a connection is filled with wall cubes
+Rooms can have any size between min and max for X, Z
+find anything that isn't an 'air' cube
+will need a minimum distance to be placed away from other rooms (some may break this rule to be placed together)
+floor will need to be a plane placed first, then place walls along outer edge (set height - 2/3)
+move wall cubes to snap to plane's Y level + 0.5, X & Z- 0.5
+
+made up of 2 parts
+floor (do this first)
+
+wall (do last)
+
+floors will have generated shape, walls will be drawn on the outer tile of the floor
+
+make grid to place rooms on
+floor can be a certain X,Z grid size
+walls are placed on the size edge
+
+all rooms will be on this grid, check cells for logic like doors and connections
+
+2. Connect Rooms
+find doors 
+find nearest door at a certain axis
+create path along that axis until reaching the door
+if door is not directly parallel to the connecting door, go along one axis until perpendicular, then go along the other.
+
+3. Fill Rooms
+fill with obstacles
+or fill with water
+fill map with noise of these objects first?
+
+____________________________________________
+
+
+https://www.fab.com/listings/719a3112-877c-4a88-92cd-a89eb2f073dc 
+
+have a button to re-generate dungeon
+make a field to input the number of rooms to be generated
