@@ -1,45 +1,86 @@
 using UnityEngine;
-
-// public class for Tile
-// tile is a 1x1 space in a grid.
-public class Tile
-{
-
-}
-
-// public class for Grid
-// grid is made up of tiles (x amount by z amount)
-
-// public class for Room
-// has floor and walls, holds current position, door tile positions
-public class Room 
-{
-
-}
-
-// public class for Wall
-
-// public class for Door
-// needs to attach to connection
-// one tile in a wall, store 'facing' direction
+using System.Collections.Generic;
 
 public class RoomGenerator : MonoBehaviour
 {
-    public int roomsToGenerate;
-    public int[,] gridSize;
+    [Header("Generation Settings")]
+    [SerializeField] private int roomsToGenerate = 5;
+    
+    public int RoomsToGenerate
+    {
+        get { return roomsToGenerate; }
+        set { roomsToGenerate = value; }
+    }
+    
+    [SerializeField] private int gridWidth = 50;
+    [SerializeField] private int gridDepth = 50;
+    [SerializeField] private int minRoomWidth = 3;
+    [SerializeField] private int maxRoomWidth = 8;
+    [SerializeField] private int minRoomDepth = 3;
+    [SerializeField] private int maxRoomDepth = 8;
+    [SerializeField] private int minDistanceBetweenRooms = 5;
+    [SerializeField] private int maxPlacementAttempts = 100;
 
-    public GameObject floorPrefab;
-    public GameObject wallPrefab;
-    public GameObject obstaclePrefab;
+    [Header("Prefabs")]
+    [SerializeField] private GameObject floorPrefab;
+    [SerializeField] private GameObject wallPrefab;
+
+    private Grid grid;
+    private FloorGenerator floorGenerator;
+    private List<Room> generatedRooms;
+    private Transform roomsParent;
 
     void Start()
     {
-        
+        // create parent object
+        if (roomsParent == null)
+        {
+            GameObject parent = new GameObject("GeneratedRooms");
+            roomsParent = parent.transform;
+        }
+
+        // generate initial dungeon
+        GenerateDungeon();
     }
 
-    
-    void Update()
+    public void GenerateDungeon()
     {
-        
+        // clear previous generation
+        ClearPreviousGeneration();
+
+        // create new grid using MapInitializer
+        grid = new Grid(gridWidth, gridDepth);
+
+        // create floor generator
+        floorGenerator = new FloorGenerator(grid, minRoomWidth, maxRoomWidth, minRoomDepth, maxRoomDepth,
+                                            minDistanceBetweenRooms, maxPlacementAttempts);
+
+        // generate floors using FloorGenerator
+        generatedRooms = floorGenerator.GenerateFloors(roomsToGenerate);
+
+        // build room visuals
+        BuildRoomVisuals();
+    }
+
+    void BuildRoomVisuals()
+    {
+        foreach (Room room in generatedRooms)
+        {
+            // create floor visuals
+            floorGenerator.CreateFloorVisuals(room, floorPrefab, roomsParent);
+        }
+    }
+
+    void ClearPreviousGeneration()
+    {
+        // destroy all previous room objects
+        if (roomsParent != null)
+        {
+            DestroyImmediate(roomsParent.gameObject);
+        }
+
+        // create new parent
+        GameObject parent = new GameObject("GeneratedRooms");
+        roomsParent = parent.transform;
     }
 }
