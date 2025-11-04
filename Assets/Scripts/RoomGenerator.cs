@@ -1,17 +1,20 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// Generates rooms on a grid-based floor layout
+/// </summary>
 public class RoomGenerator : MonoBehaviour
 {
     [Header("Generation Settings")]
     [SerializeField] private int roomsToGenerate = 5;
-    
+
     public int RoomsToGenerate
     {
         get { return roomsToGenerate; }
         set { roomsToGenerate = value; }
     }
-    
+
     [SerializeField] private int gridWidth = 50;
     [SerializeField] private int gridDepth = 50;
     [SerializeField] private int minRoomWidth = 3;
@@ -32,30 +35,27 @@ public class RoomGenerator : MonoBehaviour
 
     void Start()
     {
-        // create parent object
+        // create new parent object
         if (roomsParent == null)
         {
             GameObject parent = new GameObject("GeneratedRooms");
             roomsParent = parent.transform;
         }
 
-        // generate initial dungeon
-        GenerateDungeon();
+        GenerateDungeon(); // initial dungeon generation
     }
 
     public void GenerateDungeon()
     {
-        // clear previous generation
         ClearPreviousGeneration();
 
-        // create new grid using MapInitializer
+        // create new grid
         grid = new Grid(gridWidth, gridDepth);
 
         // create floor generator
-        floorGenerator = new FloorGenerator(grid, minRoomWidth, maxRoomWidth, minRoomDepth, maxRoomDepth,
-                                            minDistanceBetweenRooms, maxPlacementAttempts);
+        floorGenerator = new FloorGenerator(grid, minRoomWidth, maxRoomWidth, minRoomDepth, maxRoomDepth, minDistanceBetweenRooms, maxPlacementAttempts);
 
-        // generate floors using FloorGenerator
+        // generate floors
         generatedRooms = floorGenerator.GenerateFloors(roomsToGenerate);
 
         // build room visuals
@@ -68,6 +68,8 @@ public class RoomGenerator : MonoBehaviour
         {
             // create floor visuals
             floorGenerator.CreateFloorVisuals(room, floorPrefab, roomsParent);
+
+            // create wall visuals
         }
     }
 
@@ -79,7 +81,7 @@ public class RoomGenerator : MonoBehaviour
             DestroyImmediate(roomsParent.gameObject);
         }
 
-        // create new parent
+        // create new parent object
         GameObject parent = new GameObject("GeneratedRooms");
         roomsParent = parent.transform;
     }

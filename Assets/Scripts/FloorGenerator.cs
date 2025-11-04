@@ -1,6 +1,9 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// Represents a room in the floor layout
+/// </summary>
 public class Room
 {
     public int gridX;
@@ -17,6 +20,9 @@ public class Room
     }
 }
 
+/// <summary>
+/// Generates floor layouts with rooms on a grid
+/// </summary>
 public class FloorGenerator
 {
     private Grid grid;
@@ -28,7 +34,9 @@ public class FloorGenerator
     private int minDistanceBetweenRooms;
     private int maxPlacementAttempts;
 
-    public FloorGenerator(Grid grid, int minRoomWidth, int maxRoomWidth, int minRoomDepth, int maxRoomDepth, 
+    private bool debug = false;
+
+    public FloorGenerator(Grid grid, int minRoomWidth, int maxRoomWidth, int minRoomDepth, int maxRoomDepth,
                          int minDistanceBetweenRooms, int maxPlacementAttempts)
     {
         this.grid = grid;
@@ -54,6 +62,9 @@ public class FloorGenerator
         return generatedRooms;
     }
 
+    /// <summary>
+    /// Attempts to place a room on the grid
+    /// </summary>
     void TryPlaceRoom()
     {
         for (int attempt = 0; attempt < maxPlacementAttempts; attempt++)
@@ -66,7 +77,7 @@ public class FloorGenerator
             int startX = Random.Range(0, grid.width - roomWidth + 1);
             int startZ = Random.Range(0, grid.depth - roomDepth + 1);
 
-            // check if we can place the room here
+            // check if the room can be placed at this position
             if (grid.CanPlaceRoom(startX, startZ, roomWidth, roomDepth, minDistanceBetweenRooms))
             {
                 // create room
@@ -79,6 +90,7 @@ public class FloorGenerator
                     for (int z = startZ; z < startZ + roomDepth; z++)
                     {
                         grid.GetTile(x, z).type = TileType.Floor;
+                        if(debug) Debug.Log($"Marked grid tile ({x}, {z}) as Floor");
                     }
                 }
 
@@ -86,9 +98,15 @@ public class FloorGenerator
             }
         }
 
-        Debug.LogWarning($"Could not place room after {maxPlacementAttempts} attempts");
+        if(debug) Debug.LogWarning($"Could not place room after {maxPlacementAttempts} attempts");
     }
 
+    /// <summary>
+    /// Creates visual representations of the floor tiles for a given room
+    /// </summary>
+    /// <param name="room"></param>
+    /// <param name="floorPrefab"></param>
+    /// <param name="roomsParent"></param>
     public void CreateFloorVisuals(Room room, GameObject floorPrefab, Transform roomsParent)
     {
         // create floor for each tile in the room
@@ -99,6 +117,7 @@ public class FloorGenerator
                 Vector3 position = GridToWorldPosition(x, z, 0f);
                 GameObject floorTile = Object.Instantiate(floorPrefab, position, Quaternion.identity, roomsParent);
                 grid.GetTile(x, z).tilePrefab = floorTile;
+                if(debug) Debug.Log($"Created floor tile at grid ({x}, {z}) world position {position}");
             }
         }
     }
