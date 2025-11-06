@@ -6,6 +6,8 @@ using System.Collections.Generic;
 /// </summary>
 public class RoomGenerator : MonoBehaviour
 {
+    #region Generation Settings
+
     [Header("Generation Settings")]
     [SerializeField] private int roomsToGenerate = 5;
 
@@ -16,12 +18,58 @@ public class RoomGenerator : MonoBehaviour
     }
 
     [SerializeField] private int gridWidth = 50;
+    public int GridWidth
+    {
+        get { return gridWidth; }
+        set { gridWidth = value; }
+    }
+
     [SerializeField] private int gridDepth = 50;
+    public int GridDepth
+    {
+        get { return gridDepth; }
+        set { gridDepth = value; }
+    }
+
     [SerializeField] private int minRoomWidth = 3;
+    public int MinRoomWidth
+    {
+        get { return minRoomWidth; }
+        set { minRoomWidth = value; }
+    }
+
     [SerializeField] private int maxRoomWidth = 8;
+    public int MaxRoomWidth
+    {
+        get { return maxRoomWidth; }
+        set { maxRoomWidth = value; }
+    }
+
     [SerializeField] private int minRoomDepth = 3;
+    public int MinRoomDepth
+    {
+        get { return minRoomDepth; }
+        set { minRoomDepth = value; }
+    }
+
     [SerializeField] private int maxRoomDepth = 8;
+    public int MaxRoomDepth
+    {
+        get { return maxRoomDepth; }
+        set { maxRoomDepth = value; }
+    }
+
     [SerializeField] private int minDistanceBetweenRooms = 5;
+    public int MinDistanceBetweenRooms
+    {
+        get { return minDistanceBetweenRooms; }
+        set { minDistanceBetweenRooms = value; }
+    }
+
+    #endregion
+
+    #region Generation Parameters
+
     [SerializeField] private int maxPlacementAttempts = 100;
 
     [Header("Prefabs")]
@@ -30,8 +78,12 @@ public class RoomGenerator : MonoBehaviour
 
     private Grid grid;
     private FloorGenerator floorGenerator;
+    private WallGenerator wallGenerator;
+    private RoomConnector roomConnector;
     private List<Room> generatedRooms;
     private Transform roomsParent;
+    
+    #endregion
 
     void Start()
     {
@@ -55,8 +107,26 @@ public class RoomGenerator : MonoBehaviour
         // create floor generator
         floorGenerator = new FloorGenerator(grid, minRoomWidth, maxRoomWidth, minRoomDepth, maxRoomDepth, minDistanceBetweenRooms, maxPlacementAttempts);
 
+        // create wall generator
+        wallGenerator = new WallGenerator(grid);
+
+        // create room connector
+        roomConnector = new RoomConnector(grid);
+
         // generate floors
         generatedRooms = floorGenerator.GenerateFloors(roomsToGenerate);
+
+        // generate doors for rooms
+        wallGenerator.GenerateDoorsForRooms(generatedRooms);
+
+        // connect rooms with corridors
+        roomConnector.ConnectAllRooms(generatedRooms);
+
+        // ensure all rooms are in one connected component (no isolated room groups)
+        roomConnector.EnsureAllRoomsConnected(generatedRooms);
+
+        // cleanup unconnected doors (fill with walls and remove connection tiles)
+        roomConnector.CleanupUnconnectedDoors(generatedRooms);
 
         // build room visuals
         BuildRoomVisuals();
@@ -68,8 +138,18 @@ public class RoomGenerator : MonoBehaviour
         {
             // create floor visuals
             floorGenerator.CreateFloorVisuals(room, floorPrefab, roomsParent);
+        }
 
-            // create wall visuals
+        // create wall visuals for all rooms
+        if (wallPrefab != null)
+        {
+            wallGenerator.CreateWallsForRooms(generatedRooms, wallPrefab, roomsParent);
+        }
+
+        // create corridor visuals
+        if (floorPrefab != null)
+        {
+            roomConnector.CreateCorridorVisuals(floorPrefab, roomsParent, generatedRooms);
         }
     }
 
