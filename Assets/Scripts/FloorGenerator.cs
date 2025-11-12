@@ -10,7 +10,6 @@ public class Room
     public int gridZ;
     public int width;
     public int depth;
-    public List<Door> doors;
 
     public Room(int x, int z, int w, int d)
     {
@@ -18,7 +17,6 @@ public class Room
         gridZ = z;
         width = w;
         depth = d;
-        doors = new List<Door>();
     }
 }
 

@@ -115,18 +115,12 @@ public class RoomGenerator : MonoBehaviour
 
         // generate floors
         generatedRooms = floorGenerator.GenerateFloors(roomsToGenerate);
-
-        // generate doors for rooms
-        wallGenerator.GenerateDoorsForRooms(generatedRooms);
-
+        
         // connect rooms with corridors
         roomConnector.ConnectAllRooms(generatedRooms);
 
         // ensure all rooms are in one connected component (no isolated room groups)
         roomConnector.EnsureAllRoomsConnected(generatedRooms);
-
-        // cleanup unconnected doors (fill with walls and remove connection tiles)
-        roomConnector.CleanupUnconnectedDoors(generatedRooms);
 
         // build room visuals
         BuildRoomVisuals();

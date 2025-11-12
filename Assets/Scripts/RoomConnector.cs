@@ -23,119 +23,331 @@ using System.Collections.Generic;
 public class RoomConnector
 {
     private Grid grid;
-    //private bool debug = false;
+    private bool debug = false;
     
-    // track corridor tiles for pruning
-    //private Dictionary<string, CorridorInfo> corridorTiles;
+    // Helper classes following single responsibility principle
+    private CorridorPathfinder pathfinder;
+    private CorridorConnectionManager connectionManager;
+    private CorridorVisualizer visualizer;
+    
+    // Track corridor connections (using positions instead of doors)
+    private Dictionary<Vector2Int, Vector2Int> positionConnections;
+    private List<CorridorConnection> corridorConnections;
+    
+    // Track corridor tiles for pruning
+    private Dictionary<string, CorridorInfo> corridorTiles;
+    
+    // Track used positions to avoid duplicate connections
+    private HashSet<string> usedPositions;
 
     public RoomConnector(Grid grid)
     {
         this.grid = grid;
+        this.pathfinder = new CorridorPathfinder(grid);
+        this.connectionManager = new CorridorConnectionManager(pathfinder);
+        this.visualizer = new CorridorVisualizer(grid);
+        this.positionConnections = new Dictionary<Vector2Int, Vector2Int>();
+        this.corridorConnections = new List<CorridorConnection>();
+        this.corridorTiles = new Dictionary<string, CorridorInfo>();
+        this.usedPositions = new HashSet<string>();
     }
 
+    /// <summary>
+    /// Pre-place floor tiles at all door positions (center of every wall)
+    /// This ensures door positions are marked as floor before pathfinding
+    /// </summary>
+    /// <param name="rooms">List of all rooms</param>
+    public void PrePlaceDoorTiles(List<Room> rooms)
+    {
+        if (rooms == null)
+            return;
+
+        foreach (Room room in rooms)
+        {
+            List<Vector2Int> doorPositions = connectionManager.GetWallCenterTiles(room);
+            
+            foreach (Vector2Int doorPos in doorPositions)
+            {
+                Tile tile = grid.GetTile(doorPos.x, doorPos.y);
+                if (tile != null)
+                {
+                    // Mark door position as Floor (will be changed to Door later if used)
+                    // This allows pathfinding to find these positions
+                    if (tile.type == TileType.Wall || tile.type == TileType.Air)
+                    {
+                        tile.type = TileType.Floor;
+                    }
+                }
+            }
+        }
+
+        if (debug)
+        {
+            Debug.Log($"Pre-placed door tiles for {rooms.Count} rooms");
+        }
+    }
+
+    /// <summary>
+    /// Connect all rooms by finding edge position pairs and creating corridors between them
     /// </summary>
     /// <param name="rooms">List of all rooms to connect</param>
     public void ConnectAllRooms(List<Room> rooms)
     {
-        
-    }
+        if (rooms == null || rooms.Count <= 1)
+            return;
 
-    /// Ensure all rooms are connected in a single connected component
-    /// Uses graph connectivity to find disconnected room groups and connects them
-    public void EnsureAllRoomsConnected(List<Room> rooms)
-    {
-       
-    }
+        positionConnections.Clear();
+        corridorConnections.Clear();
+        corridorTiles.Clear();
+        usedPositions.Clear();
 
-    /// <summary>
-    /// Helper struct to hold a pair of doors
-    /// </summary>
-    private struct DoorPair
-    {
-        public Door door1;
-        public Door door2;
-        public float distance;
+        // Find all potential edge position pairs and sort by distance
+        List<CorridorConnectionManager.EdgePair> edgePairs = connectionManager.FindAllEdgePairs(rooms, usedPositions);
 
-        public DoorPair(Door d1, Door d2, float dist)
+        // Connect rooms, starting with the closest pairs
+        foreach (var pair in edgePairs)
         {
-            door1 = d1;
-            door2 = d2;
-            distance = dist;
+            // Skip if positions are already used
+            string key1 = GetKey(pair.pos1);
+            string key2 = GetKey(pair.pos2);
+            
+            if (usedPositions.Contains(key1) || usedPositions.Contains(key2))
+                continue;
+
+            // Create corridor between the two edge positions
+            CreateCorridorBetweenPositions(pair.pos1, pair.pos2, pair.room1, pair.room2);
+            
+            // Mark positions as used
+            usedPositions.Add(key1);
+            usedPositions.Add(key2);
+        }
+
+        if (debug)
+        {
+            Debug.Log($"Connected {positionConnections.Count} position pairs across {rooms.Count} rooms");
         }
     }
 
-    /// Clean up unconnected doors by filling them with walls and removing connection tiles
+    /// <summary>
+    /// Ensure all rooms are connected in a single connected component
+    /// Uses graph connectivity to find disconnected room groups and connects them
     /// </summary>
-    /// <param name="rooms">List of all rooms to clean up</param>
-    public void CleanupUnconnectedDoors(List<Room> rooms)
+    public void EnsureAllRoomsConnected(List<Room> rooms)
     {
-        
+        if (rooms == null || rooms.Count <= 1)
+            return;
+
+        // Check if all rooms are already connected
+        if (connectionManager.AreAllRoomsConnected(rooms, positionConnections))
+        {
+            if (debug)
+                Debug.Log("All rooms are already connected");
+            return;
+        }
+
+        // Find disconnected room groups using union-find
+        Dictionary<Room, Room> parent = new Dictionary<Room, Room>();
+        foreach (Room room in rooms)
+        {
+            parent[room] = room;
+        }
+
+        // Union connected rooms
+        foreach (var connection in positionConnections)
+        {
+            Vector2Int pos1 = connection.Key;
+            Vector2Int pos2 = connection.Value;
+            
+            Room room1 = connectionManager.FindRoomContainingPosition(pos1, rooms);
+            Room room2 = connectionManager.FindRoomContainingPosition(pos2, rooms);
+            
+            if (room1 != null && room2 != null && room1 != room2)
+            {
+                Union(room1, room2, parent);
+            }
+        }
+
+        // Group rooms by their root
+        Dictionary<Room, List<Room>> roomGroups = new Dictionary<Room, List<Room>>();
+        foreach (Room room in rooms)
+        {
+            Room root = FindRoot(room, parent);
+            if (!roomGroups.ContainsKey(root))
+            {
+                roomGroups[root] = new List<Room>();
+            }
+            roomGroups[root].Add(room);
+        }
+
+        // If we have multiple groups, connect them
+        if (roomGroups.Count > 1)
+        {
+            List<Room> groupList = new List<Room>(roomGroups.Keys);
+            
+            // Connect each group to the next group
+            for (int i = 0; i < groupList.Count - 1; i++)
+            {
+                Room group1 = groupList[i];
+                Room group2 = groupList[i + 1];
+                
+                // Find closest edge positions between the two groups
+                Vector2Int closestPos1 = Vector2Int.zero;
+                Vector2Int closestPos2 = Vector2Int.zero;
+                float closestDistance = float.MaxValue;
+                Room closestRoom1 = null;
+                Room closestRoom2 = null;
+
+                foreach (Room room1 in roomGroups[group1])
+                {
+                    List<Vector2Int> centerTiles1 = connectionManager.GetWallCenterTiles(room1);
+                    foreach (Room room2 in roomGroups[group2])
+                    {
+                        List<Vector2Int> centerTiles2 = connectionManager.GetWallCenterTiles(room2);
+                        
+                        foreach (Vector2Int pos1 in centerTiles1)
+                        {
+                            foreach (Vector2Int pos2 in centerTiles2)
+                            {
+                                float distance = pathfinder.CalculateManhattanDistance(pos1.x, pos1.y, pos2.x, pos2.y);
+                                
+                                if (distance < closestDistance)
+                                {
+                                    closestDistance = distance;
+                                    closestPos1 = pos1;
+                                    closestPos2 = pos2;
+                                    closestRoom1 = room1;
+                                    closestRoom2 = room2;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Create corridor between the two groups
+                if (closestRoom1 != null && closestRoom2 != null)
+                {
+                    CreateCorridorBetweenPositions(closestPos1, closestPos2, closestRoom1, closestRoom2);
+                    
+                    if (debug)
+                    {
+                        Debug.Log($"Connected room groups {i} and {i + 1} with corridor");
+                    }
+                }
+            }
+        }
     }
-  
-    /// Find the closest unconnected door in a different room
-    /// </summary>
-    /// <param name="sourceRoom">The room containing the source door</param>
-    /// <param name="sourceDoor">The door we want to connect from</param>
-    /// <param name="allRooms">List of all rooms to search</param>
-    /// <returns>The closest unconnected door, or null if none found</returns>
-    private Door FindClosestUnconnectedDoor(Room sourceRoom, Door sourceDoor, List<Room> allRooms)
+
+    private Room FindRoot(Room room, Dictionary<Room, Room> parent)
     {
-       return null;
+        if (parent[room] != room)
+        {
+            parent[room] = FindRoot(parent[room], parent); // Path compression
+        }
+        return parent[room];
+    }
+
+    private void Union(Room room1, Room room2, Dictionary<Room, Room> parent)
+    {
+        Room root1 = FindRoot(room1, parent);
+        Room root2 = FindRoot(room2, parent);
+        
+        if (root1 != root2)
+        {
+            parent[root2] = root1;
+        }
     }
 
     /// <summary>
-    /// Calculate Manhattan distance between two points
-    /// Manhattan distance = |x1 - x2| + |z1 - z2|
-    /// shortest path length for L-shaped corridors
+    /// Create a corridor between two positions using the shortest L-shaped path
+    /// Places door tiles at the start and end positions
+    /// The path will align parallel to both door positions' walls
     /// </summary>
-    private float CalculateManhattanDistance(int x1, int z1, int x2, int z2)
+    private void CreateCorridorBetweenPositions(Vector2Int pos1, Vector2Int pos2, Room room1, Room room2)
     {
-        return Mathf.Abs(x1 - x2) + Mathf.Abs(z1 - z2);
-    }
-
-    /// Create a corridor between two doors using the shortest L-shaped path
-    /// </summary>
-    /// <param name="door1">Starting door</param>
-    /// <param name="door2">Ending door</param>
-    private void CreateCorridorBetweenDoors(Door door1, Door door2)
-    {
+        // Find shortest path using A* pathfinding
+        // This allows multiple turns and finds the optimal path avoiding obstacles
+        List<Vector2Int> path = pathfinder.FindShortestPath(pos1, pos2, room1, room2);
         
+        // If no path found, fall back to a simple straight path (shouldn't happen in normal cases)
+        if (path == null || path.Count == 0)
+        {
+            if (debug)
+            {
+                Debug.LogWarning($"No path found from ({pos1.x}, {pos1.y}) to ({pos2.x}, {pos2.y})");
+            }
+            return;
+        }
+
+        // Mark path as floor (this will replace walls with floors)
+        pathfinder.MarkPathAsFloor(path);
+
+        // Place doors at the start and end of the corridor
+        pathfinder.PlaceDoorsAtEndpoints(path);
+
+        // Track corridor tiles
+        foreach (Vector2Int pos in path)
+        {
+            string key = GetKey(pos);
+            if (!corridorTiles.ContainsKey(key))
+            {
+                corridorTiles[key] = new CorridorInfo();
+            }
+            corridorTiles[key].useCount++;
+        }
+
+        // Store connection info
+        positionConnections[pos1] = pos2;
+
+        CorridorConnection connection = new CorridorConnection
+        {
+            pos1 = pos1,
+            pos2 = pos2,
+            path = path,
+            room1 = room1,
+            room2 = room2
+        };
+        corridorConnections.Add(connection);
+
+        // Update corridor tile tracking
+        foreach (Vector2Int pos in path)
+        {
+            string key = GetKey(pos);
+            if (corridorTiles.ContainsKey(key))
+            {
+                corridorTiles[key].connections.Add(connection);
+            }
+        }
+
+        if (debug)
+        {
+            Debug.Log($"Created corridor from ({pos1.x}, {pos1.y}) to ({pos2.x}, {pos2.y}) with {path.Count} tiles");
+        }
     }
 
-    /// Create an L-shaped path between two points
+    /// <summary>
+    /// Count obstacles in a path (helper method)
     /// </summary>
-    /// <param name="start">Starting position</param>
-    /// <param name="end">Ending position</param>
-    /// <param name="horizontalFirst">If true, move horizontally first, then vertically</param>
-    /// <returns>List of positions forming the L-shaped path</returns>
-    private List<Vector2Int> CreateLShapedPath(Vector2Int start, Vector2Int end, bool horizontalFirst)
+    private int CountObstaclesInPath(List<Vector2Int> path)
     {
-        return null;    
+        int count = 0;
+        foreach (Vector2Int pos in path)
+        {
+            Tile tile = grid.GetTile(pos.x, pos.y);
+            if (tile != null && tile.type != TileType.Air && tile.type != TileType.Floor && tile.type != TileType.Door)
+            {
+                count++;
+            }
+        }
+        return count;
     }
 
-    
-    /// Mark all tiles in a path as Floor type
-    /// </summary>
-    /// <param name="path">List of positions to mark as floor</param>
-    private void MarkPathAsFloor(List<Vector2Int> path)
-    {
-        
-    }
 
+    /// <summary>
     /// Create visual floor tiles for corridors
     /// </summary>
-    /// <param name="floorPrefab">Prefab to use for floor tiles</param>
-    /// <param name="roomsParent">Parent transform for organizing hierarchy</param>
-    /// <param name="rooms">List of rooms to check (corridor tiles are not in rooms)</param>
     public void CreateCorridorVisuals(GameObject floorPrefab, Transform roomsParent, List<Room> rooms)
     {
-        
-    }
-
-    /// Convert grid coordinates to world position
-    private Vector3 GridToWorldPosition(int gridX, int gridZ, float yOffset)
-    {
-        return new Vector3(gridX - 0.5f, yOffset, gridZ - 0.5f);
+        visualizer.CreateCorridorVisuals(floorPrefab, roomsParent, rooms);
     }
 
     /// Information about a corridor tile for tracking and pruning
@@ -151,11 +363,11 @@ public class RoomConnector
         }
     }
 
-    /// Represents a corridor connection between two doors
+    /// Represents a corridor connection between two positions
     private class CorridorConnection
     {
-        public Door door1;
-        public Door door2;
+        public Vector2Int pos1;
+        public Vector2Int pos2;
         public List<Vector2Int> path;
         public Room room1;
         public Room room2;
@@ -169,24 +381,44 @@ public class RoomConnector
         return $"{pos.x},{pos.y}";
     }
 
-    /// <summary>
-    /// Find the room containing a specific door
-    /// </summary>
-    private Room FindRoomContainingDoor(Door door, List<Room> rooms)
-    {
-        foreach (Room room in rooms)
-        {
-            if (room.doors.Contains(door))
-                return room;
-        }
-        return null;
-    }
 
     /// <summary>
     /// Remove a corridor path (change tiles back to Air if they're not used by other corridors)
     /// </summary>
     private void RemoveCorridorPath(List<Vector2Int> path)
     {
-        
+        if (path == null)
+            return;
+
+        foreach (Vector2Int pos in path)
+        {
+            string key = GetKey(pos);
+            
+            if (corridorTiles.ContainsKey(key))
+            {
+                CorridorInfo info = corridorTiles[key];
+                info.useCount--;
+                
+                // Only remove tile if no other corridors use it
+                if (info.useCount <= 0)
+                {
+                    Tile tile = grid.GetTile(pos.x, pos.y);
+                    if (tile != null && tile.type == TileType.Floor)
+                    {
+                        // Mark as Air if it's a corridor floor tile
+                        tile.type = TileType.Air;
+                        
+                        // Destroy visual if it exists
+                        if (tile.tilePrefab != null)
+                        {
+                            Object.Destroy(tile.tilePrefab);
+                            tile.tilePrefab = null;
+                        }
+                    }
+                    
+                    corridorTiles.Remove(key);
+                }
+            }
+        }
     }
 }
