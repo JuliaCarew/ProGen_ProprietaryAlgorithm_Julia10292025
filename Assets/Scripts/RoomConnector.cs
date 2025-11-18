@@ -53,41 +53,6 @@ public class RoomConnector
     }
 
     /// <summary>
-    /// Pre-place floor tiles at all door positions (center of every wall)
-    /// This ensures door positions are marked as floor before pathfinding
-    /// </summary>
-    /// <param name="rooms">List of all rooms</param>
-    public void PrePlaceDoorTiles(List<Room> rooms)
-    {
-        if (rooms == null)
-            return;
-
-        foreach (Room room in rooms)
-        {
-            List<Vector2Int> doorPositions = connectionManager.GetWallCenterTiles(room);
-            
-            foreach (Vector2Int doorPos in doorPositions)
-            {
-                Tile tile = grid.GetTile(doorPos.x, doorPos.y);
-                if (tile != null)
-                {
-                    // Mark door position as Floor (will be changed to Door later if used)
-                    // This allows pathfinding to find these positions
-                    if (tile.type == TileType.Wall || tile.type == TileType.Air)
-                    {
-                        tile.type = TileType.Floor;
-                    }
-                }
-            }
-        }
-
-        if (debug)
-        {
-            Debug.Log($"Pre-placed door tiles for {rooms.Count} rooms");
-        }
-    }
-
-    /// <summary>
     /// Connect all rooms by finding edge position pairs and creating corridors between them
     /// </summary>
     /// <param name="rooms">List of all rooms to connect</param>
@@ -325,24 +290,6 @@ public class RoomConnector
     }
 
     /// <summary>
-    /// Count obstacles in a path (helper method)
-    /// </summary>
-    private int CountObstaclesInPath(List<Vector2Int> path)
-    {
-        int count = 0;
-        foreach (Vector2Int pos in path)
-        {
-            Tile tile = grid.GetTile(pos.x, pos.y);
-            if (tile != null && tile.type != TileType.Air && tile.type != TileType.Floor && tile.type != TileType.Door)
-            {
-                count++;
-            }
-        }
-        return count;
-    }
-
-
-    /// <summary>
     /// Create visual floor tiles for corridors
     /// </summary>
     public void CreateCorridorVisuals(GameObject floorPrefab, Transform roomsParent, List<Room> rooms)
@@ -379,46 +326,5 @@ public class RoomConnector
     private string GetKey(Vector2Int pos)
     {
         return $"{pos.x},{pos.y}";
-    }
-
-
-    /// <summary>
-    /// Remove a corridor path (change tiles back to Air if they're not used by other corridors)
-    /// </summary>
-    private void RemoveCorridorPath(List<Vector2Int> path)
-    {
-        if (path == null)
-            return;
-
-        foreach (Vector2Int pos in path)
-        {
-            string key = GetKey(pos);
-            
-            if (corridorTiles.ContainsKey(key))
-            {
-                CorridorInfo info = corridorTiles[key];
-                info.useCount--;
-                
-                // Only remove tile if no other corridors use it
-                if (info.useCount <= 0)
-                {
-                    Tile tile = grid.GetTile(pos.x, pos.y);
-                    if (tile != null && tile.type == TileType.Floor)
-                    {
-                        // Mark as Air if it's a corridor floor tile
-                        tile.type = TileType.Air;
-                        
-                        // Destroy visual if it exists
-                        if (tile.tilePrefab != null)
-                        {
-                            Object.Destroy(tile.tilePrefab);
-                            tile.tilePrefab = null;
-                        }
-                    }
-                    
-                    corridorTiles.Remove(key);
-                }
-            }
-        }
     }
 }

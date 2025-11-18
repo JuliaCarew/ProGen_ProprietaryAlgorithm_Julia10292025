@@ -14,18 +14,13 @@ public class CorridorVisualizer
         this.grid = grid;
     }
 
-    /// <summary>
-    /// Create visual floor tiles for corridors
-    /// </summary>
-    /// <param name="floorPrefab">Prefab to use for floor tiles</param>
-    /// <param name="roomsParent">Parent transform for organizing hierarchy</param>
-    /// <param name="rooms">List of rooms to check (corridor tiles are not in rooms)</param>
+    // create visual floor tiles for corridors
     public void CreateCorridorVisuals(GameObject floorPrefab, Transform roomsParent, List<Room> rooms)
     {
         if (floorPrefab == null || roomsParent == null)
             return;
 
-        // Create a set of all room tile positions for quick lookup
+        // create a set of all room tile positions for quick lookup
         HashSet<string> roomTilePositions = new HashSet<string>();
         foreach (Room room in rooms)
         {
@@ -38,7 +33,7 @@ public class CorridorVisualizer
             }
         }
 
-        // Iterate through all tiles in the grid
+        // iterate through all tiles in the grid
         for (int x = 0; x < grid.width; x++)
         {
             for (int z = 0; z < grid.depth; z++)
@@ -46,11 +41,11 @@ public class CorridorVisualizer
                 Tile tile = grid.GetTile(x, z);
                 if (tile != null && tile.type == TileType.Floor)
                 {
-                    // Check if this tile is not part of any room (it's a corridor)
+                    // check if this tile is not part of any room 
                     string key = $"{x},{z}";
                     if (!roomTilePositions.Contains(key))
                     {
-                        // Check if we haven't already created a visual for this tile
+                        // check if theres not a visual for this tile
                         if (tile.tilePrefab == null)
                         {
                             Vector3 position = GridToWorldPosition(x, z, 0f);
@@ -63,12 +58,8 @@ public class CorridorVisualizer
         }
     }
 
-    /// <summary>
-    /// Convert grid coordinates to world position
-    /// </summary>
     private Vector3 GridToWorldPosition(int gridX, int gridZ, float yOffset)
     {
         return new Vector3(gridX - 0.5f, yOffset, gridZ - 0.5f);
     }
 }
-

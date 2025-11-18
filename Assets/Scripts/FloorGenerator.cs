@@ -21,7 +21,7 @@ public class Room
 }
 
 /// <summary>
-/// Generates floor layouts with rooms on a grid
+/// generates floor layouts with rooms on a grid
 /// </summary>
 public class FloorGenerator
 {
