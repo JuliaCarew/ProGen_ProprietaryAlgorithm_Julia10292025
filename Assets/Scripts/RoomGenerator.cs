@@ -80,6 +80,7 @@ public class RoomGenerator : MonoBehaviour
     private FloorGenerator floorGenerator;
     private WallGenerator wallGenerator;
     private RoomConnector roomConnector;
+    private RoomPopulator roomPopulator;
     private List<Room> generatedRooms;
     private Transform roomsParent;
     
@@ -124,6 +125,9 @@ public class RoomGenerator : MonoBehaviour
 
         // build room visuals
         BuildRoomVisuals();
+
+        // populate dungeon with rivers
+        PopulateWaterRivers();
     }
 
     void BuildRoomVisuals()
@@ -144,6 +148,50 @@ public class RoomGenerator : MonoBehaviour
         if (floorPrefab != null)
         {
             roomConnector.CreateCorridorVisuals(floorPrefab, roomsParent, generatedRooms);
+        }
+    }
+
+    void PopulateWaterRivers()
+    {
+        // get or create RoomPopulator component
+        if (roomPopulator == null)
+        {
+            // first try to get it from this GameObject
+            roomPopulator = GetComponent<RoomPopulator>();
+            
+            // if not found, try to get it from parent
+            if (roomPopulator == null && transform.parent != null)
+            {
+                roomPopulator = transform.parent.GetComponent<RoomPopulator>();
+            }
+            
+            // if still not found, try to find it in the scene
+            if (roomPopulator == null)
+            {
+                roomPopulator = FindObjectOfType<RoomPopulator>();
+            }
+            
+            // if still not found, create it
+            if (roomPopulator == null)
+            {
+                roomPopulator = gameObject.AddComponent<RoomPopulator>();
+                Debug.LogWarning("RoomPopulator component not found. Created new one. Please configure water settings in Inspector.");
+            }
+        }
+
+        // populate dungeon with water rivers
+        if (roomPopulator != null && generatedRooms != null && grid != null)
+        {
+            roomPopulator.PopulateWater(grid, generatedRooms, roomsParent);
+        }
+        else
+        {
+            if (roomPopulator == null)
+                Debug.LogError("RoomPopulator: Component not found!");
+            if (generatedRooms == null)
+                Debug.LogError("RoomPopulator: Generated rooms is null!");
+            if (grid == null)
+                Debug.LogError("RoomPopulator: Grid is null!");
         }
     }
 

@@ -8,7 +8,8 @@ public enum TileType
     Air,
     Floor,
     Wall,
-    Door
+    Door,
+    Water
 }
 
 /// <summary>
